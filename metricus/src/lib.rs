@@ -208,9 +208,10 @@ static METRICS: MetricsHolder = MetricsHolder {
     handle: AtomicRef::new(&NO_OP_METRICS_HANDLE),
 };
 
-/// Set a new metrics backend. This should be called before any worker threads start so
-/// hot-path loads can use relaxed ordering. Otherwise, all metrics calls will delegate
-/// to the `NoOpMetrics`.
+/// Set a new metrics backend. This must be called before any counters or histograms are
+/// created (including through macros), because metric objects cache the active handle.
+/// It should also be called before any worker threads start so hot-path loads can use
+/// relaxed ordering. Otherwise, all metrics calls will delegate to the `NoOpMetrics`.
 pub fn set_metrics(metrics: impl Metrics) {
     METRICS.handle.set(Box::leak(Box::new(metrics.into_handle())));
 }
@@ -297,15 +298,10 @@ impl<T> AtomicRef<T> {
 }
 
 mod access {
-    use crate::{METRICS, MetricsHandle, NO_OP_METRICS_HANDLE};
+    use crate::{METRICS, MetricsHandle};
 
     #[inline(always)]
     pub fn get_metrics() -> &'static MetricsHandle {
         METRICS.handle.get()
-    }
-
-    #[inline(always)]
-    pub fn is_noop() -> bool {
-        std::ptr::eq(get_metrics(), &NO_OP_METRICS_HANDLE)
     }
 }

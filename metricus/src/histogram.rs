@@ -1,7 +1,7 @@
 //! A `Histogram` proxy struct for managing a metrics histogram.
 
-use crate::access::{get_metrics, is_noop};
-use crate::{Id, Tags};
+use crate::access::get_metrics;
+use crate::{Id, MetricsHandle, Tags};
 #[cfg(feature = "rdtsc")]
 use quanta::Clock;
 use std::cell::LazyCell;
@@ -41,11 +41,23 @@ use std::time::Instant;
 /// my_function_with_tags();
 /// ````
 
-#[derive(Debug)]
 pub struct Histogram {
     id: Id,
+    handle: &'static MetricsHandle,
     #[cfg(feature = "rdtsc")]
     clock: Clock,
+}
+
+impl std::fmt::Debug for Histogram {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut debug = f.debug_struct("Histogram");
+        debug.field("id", &self.id);
+        #[cfg(feature = "rdtsc")]
+        {
+            debug.field("clock", &self.clock);
+        }
+        debug.finish()
+    }
 }
 
 impl Histogram {
@@ -70,9 +82,11 @@ impl Histogram {
     /// let histogram = Histogram::new("login_duration", empty_tags());
     /// ```
     pub fn new(name: &str, tags: Tags) -> Self {
-        let histogram_id = get_metrics().new_histogram(name, tags);
+        let metrics = get_metrics();
+        let histogram_id = metrics.new_histogram(name, tags);
         Self {
             id: histogram_id,
+            handle: metrics,
             #[cfg(feature = "rdtsc")]
             clock: Clock::new(),
         }
@@ -126,12 +140,12 @@ pub trait HistogramOps {
 impl HistogramOps for Histogram {
     #[inline]
     fn record(&self, value: u64) {
-        get_metrics().record(self.id, value);
+        self.handle.record(self.id, value);
     }
 
     #[inline]
     fn span(&self) -> Span<'_> {
-        if is_noop() {
+        if std::ptr::eq(self.handle, &crate::NO_OP_METRICS_HANDLE) {
             return Span { state: SpanState::NoOp };
         }
         Span {
@@ -171,7 +185,7 @@ impl<F: FnOnce() -> Histogram> HistogramOps for LazyCell<Histogram, F> {
 
 impl Drop for Histogram {
     fn drop(&mut self) {
-        get_metrics().delete_histogram(self.id);
+        self.handle.delete_histogram(self.id);
     }
 }
 
