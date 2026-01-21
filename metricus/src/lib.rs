@@ -297,10 +297,15 @@ impl<T> AtomicRef<T> {
 }
 
 mod access {
-    use crate::{METRICS, MetricsHandle};
+    use crate::{METRICS, MetricsHandle, NO_OP_METRICS_HANDLE};
 
     #[inline(always)]
     pub fn get_metrics() -> &'static MetricsHandle {
         METRICS.handle.get()
+    }
+
+    #[inline(always)]
+    pub fn is_noop() -> bool {
+        std::ptr::eq(get_metrics(), &NO_OP_METRICS_HANDLE)
     }
 }

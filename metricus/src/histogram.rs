@@ -1,6 +1,6 @@
 //! A `Histogram` proxy struct for managing a metrics histogram.
 
-use crate::access::get_metrics;
+use crate::access::{get_metrics, is_noop};
 use crate::{Id, Tags};
 #[cfg(feature = "rdtsc")]
 use quanta::Clock;
@@ -131,12 +131,17 @@ impl HistogramOps for Histogram {
 
     #[inline]
     fn span(&self) -> Span<'_> {
+        if is_noop() {
+            return Span { state: SpanState::NoOp };
+        }
         Span {
-            histogram: self,
-            #[cfg(feature = "rdtsc")]
-            start_raw: self.clock.raw(),
-            #[cfg(not(feature = "rdtsc"))]
-            start_instant: Instant::now(),
+            state: SpanState::Active {
+                histogram: self,
+                #[cfg(feature = "rdtsc")]
+                start_raw: self.clock.raw(),
+                #[cfg(not(feature = "rdtsc"))]
+                start_instant: Instant::now(),
+            },
         }
     }
 
@@ -172,22 +177,37 @@ impl Drop for Histogram {
 
 /// Used for measuring how long given operation takes. The duration is recorded in nanoseconds.
 pub struct Span<'a> {
-    histogram: &'a Histogram,
-    #[cfg(feature = "rdtsc")]
-    start_raw: u64,
-    #[cfg(not(feature = "rdtsc"))]
-    start_instant: Instant,
+    state: SpanState<'a>,
+}
+
+enum SpanState<'a> {
+    Active {
+        histogram: &'a Histogram,
+        #[cfg(feature = "rdtsc")]
+        start_raw: u64,
+        #[cfg(not(feature = "rdtsc"))]
+        start_instant: Instant,
+    },
+    NoOp,
 }
 
 impl Drop for Span<'_> {
     fn drop(&mut self) {
         #[cfg(feature = "rdtsc")]
         {
-            let end_raw = self.histogram.clock.raw();
-            let elapsed = self.histogram.clock.delta_as_nanos(self.start_raw, end_raw);
-            self.histogram.record(elapsed);
+            if let SpanState::Active { histogram, start_raw } = &self.state {
+                let end_raw = histogram.clock.raw();
+                let elapsed = histogram.clock.delta_as_nanos(*start_raw, end_raw);
+                histogram.record(elapsed);
+            }
         }
         #[cfg(not(feature = "rdtsc"))]
-        self.histogram.record(self.start_instant.elapsed().as_nanos() as u64);
+        if let SpanState::Active {
+            histogram,
+            start_instant,
+        } = &self.state
+        {
+            histogram.record(start_instant.elapsed().as_nanos() as u64);
+        }
     }
 }
