@@ -1,9 +1,8 @@
 //! A `Counter` proxy struct for managing a metrics counter.
 
-use crate::access::get_metrics_mut;
+use crate::access::get_metrics;
 use crate::{Id, Tags};
-use std::cell::{LazyCell, UnsafeCell};
-use std::sync::LazyLock;
+use std::cell::LazyCell;
 
 /// Provides methods to create a new counter, increment it, and
 /// increment it by a specified amount. It automatically deletes the counter
@@ -61,7 +60,7 @@ impl Counter {
     /// let counter = Counter::new("user_count", empty_tags());
     /// ```
     pub fn new(name: &str, tags: Tags) -> Self {
-        let counter_id = get_metrics_mut().new_counter(name, tags);
+        let counter_id = get_metrics().new_counter(name, tags);
         Self { id: counter_id }
     }
 
@@ -84,7 +83,7 @@ impl Counter {
 
 impl Drop for Counter {
     fn drop(&mut self) {
-        get_metrics_mut().delete_counter(self.id);
+        get_metrics().delete_counter(self.id);
     }
 }
 
@@ -116,31 +115,25 @@ pub trait CounterOps {
 }
 
 impl CounterOps for Counter {
+    #[inline]
     fn increment(&self) {
-        get_metrics_mut().increment_counter(self.id);
+        get_metrics().increment_counter(self.id);
     }
 
+    #[inline]
     fn increment_by(&self, delta: u64) {
-        get_metrics_mut().increment_counter_by(self.id, delta);
+        get_metrics().increment_counter_by(self.id, delta);
     }
 }
 
-impl CounterOps for LazyCell<UnsafeCell<Counter>> {
+impl<F: FnOnce() -> Counter> CounterOps for LazyCell<Counter, F> {
+    #[inline]
     fn increment(&self) {
-        unsafe { &mut *self.get() }.increment()
+        LazyCell::force(self).increment()
     }
 
+    #[inline]
     fn increment_by(&self, delta: u64) {
-        unsafe { &mut *self.get() }.increment_by(delta)
-    }
-}
-
-impl CounterOps for LazyLock<UnsafeCell<Counter>> {
-    fn increment(&self) {
-        unsafe { &mut *self.get() }.increment()
-    }
-
-    fn increment_by(&self, delta: u64) {
-        unsafe { &mut *self.get() }.increment_by(delta)
+        LazyCell::force(self).increment_by(delta)
     }
 }

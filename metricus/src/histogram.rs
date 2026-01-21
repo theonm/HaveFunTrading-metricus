@@ -1,10 +1,10 @@
 //! A `Histogram` proxy struct for managing a metrics histogram.
 
-use crate::access::get_metrics_mut;
+use crate::access::get_metrics;
 use crate::{Id, Tags};
 #[cfg(feature = "rdtsc")]
 use quanta::Clock;
-use std::cell::{LazyCell, UnsafeCell};
+use std::cell::LazyCell;
 #[cfg(not(feature = "rdtsc"))]
 use std::time::Instant;
 
@@ -70,7 +70,7 @@ impl Histogram {
     /// let histogram = Histogram::new("login_duration", empty_tags());
     /// ```
     pub fn new(name: &str, tags: Tags) -> Self {
-        let histogram_id = get_metrics_mut().new_histogram(name, tags);
+        let histogram_id = get_metrics().new_histogram(name, tags);
         Self {
             id: histogram_id,
             #[cfg(feature = "rdtsc")]
@@ -124,10 +124,12 @@ pub trait HistogramOps {
 }
 
 impl HistogramOps for Histogram {
+    #[inline]
     fn record(&self, value: u64) {
-        get_metrics_mut().record(self.id, value);
+        get_metrics().record(self.id, value);
     }
 
+    #[inline]
     fn span(&self) -> Span<'_> {
         Span {
             histogram: self,
@@ -138,29 +140,33 @@ impl HistogramOps for Histogram {
         }
     }
 
+    #[inline]
     fn with_span<F: FnOnce() -> R, R>(&self, f: F) -> R {
         let _span = self.span();
         f()
     }
 }
 
-impl HistogramOps for LazyCell<UnsafeCell<Histogram>> {
+impl<F: FnOnce() -> Histogram> HistogramOps for LazyCell<Histogram, F> {
+    #[inline]
     fn record(&self, value: u64) {
-        unsafe { &mut *self.get() }.record(value)
+        LazyCell::force(self).record(value)
     }
 
+    #[inline]
     fn span(&self) -> Span<'_> {
-        unsafe { &mut *self.get() }.span()
+        LazyCell::force(self).span()
     }
 
-    fn with_span<F: FnOnce() -> R, R>(&self, f: F) -> R {
-        unsafe { &mut *self.get() }.with_span(f)
+    #[inline]
+    fn with_span<G: FnOnce() -> R, R>(&self, f: G) -> R {
+        LazyCell::force(self).with_span(f)
     }
 }
 
 impl Drop for Histogram {
     fn drop(&mut self) {
-        get_metrics_mut().delete_histogram(self.id);
+        get_metrics().delete_histogram(self.id);
     }
 }
 

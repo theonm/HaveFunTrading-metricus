@@ -204,17 +204,15 @@ struct MetricsHolder {
 }
 
 /// Initially set to no-op backend.
-static mut METRICS: MetricsHolder = MetricsHolder {
+static METRICS: MetricsHolder = MetricsHolder {
     handle: AtomicRef::new(&NO_OP_METRICS_HANDLE),
 };
 
-/// Set a new metrics backend. This should be called as early as possible. Otherwise,
-/// all metrics calls will delegate to the `NoOpMetrics`.
+/// Set a new metrics backend. This should be called before any worker threads start so
+/// hot-path loads can use relaxed ordering. Otherwise, all metrics calls will delegate
+/// to the `NoOpMetrics`.
 pub fn set_metrics(metrics: impl Metrics) {
-    #[allow(static_mut_refs)]
-    unsafe { &mut METRICS }
-        .handle
-        .set(Box::leak(Box::new(metrics.into_handle())), Ordering::SeqCst);
+    METRICS.handle.set(Box::leak(Box::new(metrics.into_handle())));
 }
 
 /// Get name of the active metrics backend.
@@ -241,37 +239,37 @@ pub struct MetricsHandle {
 
 impl MetricsHandle {
     #[inline]
-    fn new_counter(&mut self, name: &str, tags: Tags) -> Id {
+    fn new_counter(&self, name: &str, tags: Tags) -> Id {
         (self.vtable.new_counter)(self.ptr, name, tags)
     }
 
     #[inline]
-    fn delete_counter(&mut self, id: Id) {
+    fn delete_counter(&self, id: Id) {
         (self.vtable.delete_counter)(self.ptr, id)
     }
 
     #[inline]
-    fn increment_counter_by(&mut self, id: Id, delta: u64) {
+    fn increment_counter_by(&self, id: Id, delta: u64) {
         (self.vtable.increment_counter_by)(self.ptr, id, delta)
     }
 
     #[inline]
-    fn increment_counter(&mut self, id: Id) {
+    fn increment_counter(&self, id: Id) {
         (self.vtable.increment_counter)(self.ptr, id)
     }
 
     #[inline]
-    fn new_histogram(&mut self, name: &str, tags: Tags) -> Id {
+    fn new_histogram(&self, name: &str, tags: Tags) -> Id {
         (self.vtable.new_histogram)(self.ptr, name, tags)
     }
 
     #[inline]
-    fn delete_histogram(&mut self, id: Id) {
+    fn delete_histogram(&self, id: Id) {
         (self.vtable.delete_histogram)(self.ptr, id)
     }
 
     #[inline]
-    fn record(&mut self, id: Id, value: u64) {
+    fn record(&self, id: Id, value: u64) {
         (self.vtable.record)(self.ptr, id, value)
     }
 }
@@ -288,32 +286,21 @@ impl<T> AtomicRef<T> {
     }
 
     #[inline]
-    pub fn get(&self, order: Ordering) -> &T {
-        unsafe { &*self.ptr.load(order) }
+    pub fn get(&self) -> &T {
+        unsafe { &*self.ptr.load(Ordering::Relaxed) }
     }
 
     #[inline]
-    pub fn get_mut(&mut self, order: Ordering) -> &mut T {
-        unsafe { &mut *self.ptr.load(order) }
-    }
-
-    #[inline]
-    pub fn set(&self, new_ref: &T, order: Ordering) {
-        self.ptr.store(new_ref as *const T as *mut T, order);
+    pub fn set(&self, new_ref: &T) {
+        self.ptr.store(new_ref as *const T as *mut T, Ordering::Release);
     }
 }
 
 mod access {
     use crate::{METRICS, MetricsHandle};
-    use std::sync::atomic::Ordering;
 
-    #[allow(static_mut_refs)]
-    pub fn get_metrics_mut() -> &'static mut MetricsHandle {
-        unsafe { &mut METRICS }.handle.get_mut(Ordering::Acquire)
-    }
-
-    #[allow(static_mut_refs)]
+    #[inline(always)]
     pub fn get_metrics() -> &'static MetricsHandle {
-        unsafe { &METRICS }.handle.get(Ordering::Acquire)
+        METRICS.handle.get()
     }
 }
