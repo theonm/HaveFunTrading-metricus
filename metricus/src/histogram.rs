@@ -207,7 +207,12 @@ impl Drop for Span<'_> {
             start_instant,
         } = &self.state
         {
-            histogram.record(start_instant.elapsed().as_nanos() as u64);
+            let elapsed = start_instant.elapsed();
+            let nanos = elapsed
+                .as_secs()
+                .wrapping_mul(1_000_000_000)
+                .wrapping_add(u64::from(elapsed.subsec_nanos()));
+            histogram.record(nanos);
         }
     }
 }
