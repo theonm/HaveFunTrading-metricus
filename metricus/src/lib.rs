@@ -25,6 +25,8 @@ pub const fn empty_tags() -> Tags<'static> {
 }
 
 /// Common interface for metrics backend. Each new backend must implement this trait.
+/// Implementations must be safe for concurrent use or be used in a strictly single-threaded
+/// manner, because the global metrics handle can be shared across threads.
 pub trait Metrics {
     fn name(&self) -> &'static str;
 
@@ -237,6 +239,11 @@ pub struct MetricsHandle {
     vtable: MetricsVTable,
     name: &'static str,
 }
+
+// Safety: the handle is immutable and backend implementations are responsible for
+// any internal synchronization if they are used across threads.
+unsafe impl Send for MetricsHandle {}
+unsafe impl Sync for MetricsHandle {}
 
 impl MetricsHandle {
     #[inline]

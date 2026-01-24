@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- Mark `MetricsHandle` as `Send` and `Sync` with an explicit safety contract: it is only safe if backends are either thread-safe (internally synchronized) or are used in a strictly single-threaded manner. This allows allocator counters to live in a `static LazyLock` and fixes the `*mut u8`-derived `Sync` error without changing runtime behavior.
+- Clarify allocator instrumentation behavior: allocation counters cache the active handle on first use, so `set_metrics` must run before allocator instrumentation is enabled if you expect these counters to emit.
+- Move the release configuration to `[workspace.metadata.release]` to eliminate Cargo's unused manifest key warning while preserving the same metadata for release tooling.
+- Remove an extra blank line after the `Histogram` doc comment to satisfy `clippy::empty_line_after_doc_comments` (no behavior change).
 - Skip span timing work when the no-op metrics handle is active, returning a no-op span that avoids `Instant::now()`/`rdtsc` and record calls. This reduces overhead when metrics are disabled while keeping behavior unchanged when a real backend is set.
 - Avoid u128 nanosecond conversion on non-`rdtsc` span drops by computing nanos from seconds + subsecond nanos with wrapping arithmetic. This keeps the u64 return value behavior while trimming a small amount of conversion overhead.
 - Cache the active metrics handle inside `Counter`/`Histogram` so hot-path operations avoid an atomic load. This tightens the initialization contract: `set_metrics` must run before any counters/histograms (including macro statics) are created.

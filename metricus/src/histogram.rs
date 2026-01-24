@@ -40,7 +40,6 @@ use std::time::Instant;
 ///
 /// my_function_with_tags();
 /// ````
-
 pub struct Histogram {
     id: Id,
     handle: &'static MetricsHandle,
