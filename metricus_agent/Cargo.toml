@@ -20,8 +20,8 @@ rtrb = ["dep:rtrb"]
 rdtsc = ["metricus/rdtsc"]
 
 [dependencies]
-metricus = { path = "../metricus", version = "0.0.14" }
-metricus_macros = { path = "../metricus_macros", version = "0.0.14" }
+metricus = { path = "../metricus", version = "0.0.15" }
+metricus_macros = { path = "../metricus_macros", version = "0.0.15" }
 anyhow = { workspace = true }
 duration-str = { workspace = true }
 hdrhistogram = { workspace = true }
@@ -37,7 +37,7 @@ dtoa = { workspace = true }
 core_affinity = { workspace = true }
 
 [dev-dependencies]
-metricus_allocator = { path = "../metricus_allocator", version = "0.0.14" }
+metricus_allocator = { path = "../metricus_allocator", version = "0.0.15" }
 criterion = { workspace = true }
 env_logger = "0.11.6"
 

@@ -15,7 +15,7 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-metricus = { path = "../metricus", version = "0.0.14" }
+metricus = { path = "../metricus", version = "0.0.15" }
 jemallocator = { workspace = true, optional = true }
 mimalloc = { workspace = true, optional = true }
 

@@ -1,11 +1,11 @@
 [workspace.package]
-version = "0.0.14"
+version = "0.0.15"
 edition = "2024"
 license = "MIT"
 description = "Low latency metrics framework."
 documentation = "https://docs.rs/metricus"
 repository = "https://github.com/HaveFunTrading/metricus"
-keywords = ["metrics", "low-latency"]
+keywords = ["metrics", "histogram", "counter", "rdtsc", "line-protocol"]
 categories = ["development-tools::debugging"]
 rust-version = "1.85.1"
 readme = "README.md"
