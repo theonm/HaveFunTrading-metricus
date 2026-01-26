@@ -2,7 +2,7 @@
 
 use crate::access::get_metrics;
 use crate::{Id, MetricsHandle, Tags};
-use std::cell::LazyCell;
+use std::ops::Deref;
 
 /// Provides methods to create a new counter, increment it, and
 /// increment it by a specified amount. It automatically deletes the counter
@@ -137,14 +137,17 @@ impl CounterOps for Counter {
     }
 }
 
-impl<F: FnOnce() -> Counter> CounterOps for LazyCell<Counter, F> {
+impl<T> CounterOps for T
+where
+    T: Deref<Target = Counter>,
+{
     #[inline]
     fn increment(&self) {
-        LazyCell::force(self).increment()
+        self.deref().increment()
     }
 
     #[inline]
     fn increment_by(&self, delta: u64) {
-        LazyCell::force(self).increment_by(delta)
+        self.deref().increment_by(delta)
     }
 }
