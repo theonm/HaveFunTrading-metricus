@@ -1,4 +1,4 @@
-# metricus
+# metric&#181;s
 
 Low-latency metrics framework.
 
