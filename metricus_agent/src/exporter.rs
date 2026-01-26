@@ -1,4 +1,4 @@
-use crate::aggregator::{Counter, Counters, Encoder, Histogram, Histograms};
+use crate::aggregator::{Counters, Encoder, Histograms};
 use crate::config::{ExporterSource, FileConfig, UdpConfig, UnixSocketConfig};
 use log::warn;
 use metricus::Id;
@@ -35,7 +35,7 @@ impl TryFrom<ExporterSource> for Exporter {
 }
 
 impl Exporter {
-    pub fn publish_counters(&mut self, counters: &HashMap<Id, Counter>, timestamp: u64) -> std::io::Result<()> {
+    pub fn publish_counters(&mut self, counters: &Counters, timestamp: u64) -> std::io::Result<()> {
         match self {
             Exporter::NoOp => Ok(()),
             Exporter::Udp(exporter) => exporter.publish_counters(counters, timestamp),
@@ -45,7 +45,7 @@ impl Exporter {
         }
     }
 
-    pub fn publish_histograms(&mut self, histograms: &HashMap<Id, Histogram>, timestamp: u64) -> std::io::Result<()> {
+    pub fn publish_histograms(&mut self, histograms: &Histograms, timestamp: u64) -> std::io::Result<()> {
         match self {
             Exporter::NoOp => Ok(()),
             Exporter::Udp(exporter) => exporter.publish_histograms(histograms, timestamp),
@@ -209,7 +209,7 @@ impl TryFrom<UnixSocketConfig> for StreamExporter<UnixStream> {
 }
 
 impl<S: Write> StreamExporter<S> {
-    fn publish_counters(&mut self, counters: &HashMap<Id, Counter>, timestamp: u64) -> std::io::Result<()> {
+    fn publish_counters(&mut self, counters: &Counters, timestamp: u64) -> std::io::Result<()> {
         for counter in counters.values() {
             self.encoder.encode_counter(counter, timestamp, &mut self.writer)?;
         }
@@ -217,7 +217,7 @@ impl<S: Write> StreamExporter<S> {
         Ok(())
     }
 
-    fn publish_histograms(&mut self, histograms: &HashMap<Id, Histogram>, timestamp: u64) -> std::io::Result<()> {
+    fn publish_histograms(&mut self, histograms: &Histograms, timestamp: u64) -> std::io::Result<()> {
         for histogram in histograms.values() {
             self.encoder.encode_histogram(histogram, timestamp, &mut self.writer)?;
         }

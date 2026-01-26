@@ -18,7 +18,7 @@ members = [
 ]
 resolver = "3"
 
-[release]
+[workspace.metadata.release]
 workspace = true
 
 [workspace.dependencies]

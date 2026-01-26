@@ -134,8 +134,9 @@ pub fn enable_allocator_instrumentation() {
 
 static COUNTERS: LazyLock<Counters> = LazyLock::new(|| Counters {
     // `counter_with_id` creates a counter object without registering it.
-    // This is used for allocation and de-allocation counters, which are special cases that are initialised before the metrics backend is created.
-    // In that case, the `Counter` is created with the `NoOpBackend`, so we defer the registration of the counters until the actual backend is ready.
+    // These allocation counters are created lazily on first use and cache the active metrics handle.
+    // If they are initialized before `set_metrics`, they will remain bound to the no-op backend.
+    // Ensure the backend is set before enabling allocator instrumentation if you want these to emit.
     alloc_count: Counter::new_with_id(ALLOC_COUNTER_ID),
     alloc_bytes: Counter::new_with_id(ALLOC_BYTES_COUNTER_ID),
     dealloc_count: Counter::new_with_id(DEALLOC_COUNTER_ID),

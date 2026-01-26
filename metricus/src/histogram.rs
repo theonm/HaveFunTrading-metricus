@@ -1,11 +1,13 @@
 //! A `Histogram` proxy struct for managing a metrics histogram.
 
-use crate::access::get_metrics_mut;
-use crate::{Id, Tags};
-#[cfg(feature = "rdtsc")]
+use crate::access::get_metrics;
+use crate::{Id, MetricsHandle, Tags};
+#[cfg(all(feature = "span", feature = "rdtsc"))]
 use quanta::Clock;
-use std::cell::{LazyCell, UnsafeCell};
-#[cfg(not(feature = "rdtsc"))]
+use std::cell::LazyCell;
+#[cfg(not(feature = "span"))]
+use std::marker::PhantomData;
+#[cfg(all(feature = "span", not(feature = "rdtsc")))]
 use std::time::Instant;
 
 /// Facilitates the creation of a new histogram, recording of values, and
@@ -40,12 +42,23 @@ use std::time::Instant;
 ///
 /// my_function_with_tags();
 /// ````
-
-#[derive(Debug)]
 pub struct Histogram {
     id: Id,
-    #[cfg(feature = "rdtsc")]
+    handle: &'static MetricsHandle,
+    #[cfg(all(feature = "span", feature = "rdtsc"))]
     clock: Clock,
+}
+
+impl std::fmt::Debug for Histogram {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut debug = f.debug_struct("Histogram");
+        debug.field("id", &self.id);
+        #[cfg(all(feature = "span", feature = "rdtsc"))]
+        {
+            debug.field("clock", &self.clock);
+        }
+        debug.finish()
+    }
 }
 
 impl Histogram {
@@ -70,10 +83,12 @@ impl Histogram {
     /// let histogram = Histogram::new("login_duration", empty_tags());
     /// ```
     pub fn new(name: &str, tags: Tags) -> Self {
-        let histogram_id = get_metrics_mut().new_histogram(name, tags);
+        let metrics = get_metrics();
+        let histogram_id = metrics.new_histogram(name, tags);
         Self {
             id: histogram_id,
-            #[cfg(feature = "rdtsc")]
+            handle: metrics,
+            #[cfg(all(feature = "span", feature = "rdtsc"))]
             clock: Clock::new(),
         }
     }
@@ -124,64 +139,111 @@ pub trait HistogramOps {
 }
 
 impl HistogramOps for Histogram {
+    #[inline]
     fn record(&self, value: u64) {
-        get_metrics_mut().record(self.id, value);
+        self.handle.record(self.id, value);
     }
 
+    #[inline]
+    #[cfg(feature = "span")]
     fn span(&self) -> Span<'_> {
+        if std::ptr::eq(self.handle, &crate::NO_OP_METRICS_HANDLE) {
+            return Span { state: SpanState::NoOp };
+        }
         Span {
-            histogram: self,
-            #[cfg(feature = "rdtsc")]
-            start_raw: self.clock.raw(),
-            #[cfg(not(feature = "rdtsc"))]
-            start_instant: Instant::now(),
+            state: SpanState::Active {
+                histogram: self,
+                #[cfg(feature = "rdtsc")]
+                start_raw: self.clock.raw(),
+                #[cfg(not(feature = "rdtsc"))]
+                start_instant: Instant::now(),
+            },
         }
     }
 
+    #[inline]
+    #[cfg(not(feature = "span"))]
+    fn span(&self) -> Span<'_> {
+        Span { _marker: PhantomData }
+    }
+
+    #[inline]
     fn with_span<F: FnOnce() -> R, R>(&self, f: F) -> R {
         let _span = self.span();
         f()
     }
 }
 
-impl HistogramOps for LazyCell<UnsafeCell<Histogram>> {
+impl<F: FnOnce() -> Histogram> HistogramOps for LazyCell<Histogram, F> {
+    #[inline]
     fn record(&self, value: u64) {
-        unsafe { &mut *self.get() }.record(value)
+        LazyCell::force(self).record(value)
     }
 
+    #[inline]
     fn span(&self) -> Span<'_> {
-        unsafe { &mut *self.get() }.span()
+        LazyCell::force(self).span()
     }
 
-    fn with_span<F: FnOnce() -> R, R>(&self, f: F) -> R {
-        unsafe { &mut *self.get() }.with_span(f)
+    #[inline]
+    fn with_span<G: FnOnce() -> R, R>(&self, f: G) -> R {
+        LazyCell::force(self).with_span(f)
     }
 }
 
 impl Drop for Histogram {
     fn drop(&mut self) {
-        get_metrics_mut().delete_histogram(self.id);
+        self.handle.delete_histogram(self.id);
     }
 }
 
 /// Used for measuring how long given operation takes. The duration is recorded in nanoseconds.
+#[cfg(feature = "span")]
 pub struct Span<'a> {
-    histogram: &'a Histogram,
-    #[cfg(feature = "rdtsc")]
-    start_raw: u64,
-    #[cfg(not(feature = "rdtsc"))]
-    start_instant: Instant,
+    state: SpanState<'a>,
 }
 
+/// No-op span used when the `span` feature is disabled.
+#[cfg(not(feature = "span"))]
+pub struct Span<'a> {
+    _marker: PhantomData<&'a ()>,
+}
+
+#[cfg(feature = "span")]
+enum SpanState<'a> {
+    Active {
+        histogram: &'a Histogram,
+        #[cfg(feature = "rdtsc")]
+        start_raw: u64,
+        #[cfg(not(feature = "rdtsc"))]
+        start_instant: Instant,
+    },
+    NoOp,
+}
+
+#[cfg(feature = "span")]
 impl Drop for Span<'_> {
     fn drop(&mut self) {
         #[cfg(feature = "rdtsc")]
         {
-            let end_raw = self.histogram.clock.raw();
-            let elapsed = self.histogram.clock.delta_as_nanos(self.start_raw, end_raw);
-            self.histogram.record(elapsed);
+            if let SpanState::Active { histogram, start_raw } = &self.state {
+                let end_raw = histogram.clock.raw();
+                let elapsed = histogram.clock.delta_as_nanos(*start_raw, end_raw);
+                histogram.record(elapsed);
+            }
         }
         #[cfg(not(feature = "rdtsc"))]
-        self.histogram.record(self.start_instant.elapsed().as_nanos() as u64);
+        if let SpanState::Active {
+            histogram,
+            start_instant,
+        } = &self.state
+        {
+            let elapsed = start_instant.elapsed();
+            let nanos = elapsed
+                .as_secs()
+                .wrapping_mul(1_000_000_000)
+                .wrapping_add(u64::from(elapsed.subsec_nanos()));
+            histogram.record(nanos);
+        }
     }
 }

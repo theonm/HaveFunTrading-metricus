@@ -129,7 +129,7 @@ pub fn counter(attr: TokenStream, item: TokenStream) -> TokenStream {
         #(#attrs)*
         #fn_vis #fn_async #fn_unsafe fn #fn_name #fn_generics (#fn_args) #fn_output #fn_where_clause {
 
-            static mut COUNTER: core::cell::LazyCell<core::cell::UnsafeCell<metricus::Counter>> = core::cell::LazyCell::new(|| core::cell::UnsafeCell::new(metricus::Counter::new(#measurement, &[ #(#tags),* ])));
+            static mut COUNTER: core::cell::LazyCell<metricus::Counter> = core::cell::LazyCell::new(|| metricus::Counter::new(#measurement, &[ #(#tags),* ]));
             #[allow(static_mut_refs)]
             unsafe { metricus::CounterOps::increment(&COUNTER); }
 
@@ -235,7 +235,7 @@ pub fn counter_with_id(attr: TokenStream, item: TokenStream) -> TokenStream {
         #(#attrs)*
         #fn_vis #fn_async #fn_unsafe fn #fn_name #fn_generics (#fn_args) #fn_output #fn_where_clause {
 
-            static mut COUNTER: core::cell::LazyCell<core::cell::UnsafeCell<metricus::Counter>> = core::cell::LazyCell::new(|| core::cell::UnsafeCell::new(metricus::Counter::new_with_id(#counter_id)));
+            static mut COUNTER: core::cell::LazyCell<metricus::Counter> = core::cell::LazyCell::new(|| metricus::Counter::new_with_id(#counter_id));
             #[allow(static_mut_refs)]
             unsafe { metricus::CounterOps::increment(&COUNTER); }
 
@@ -362,7 +362,7 @@ pub fn span(attr: TokenStream, item: TokenStream) -> TokenStream {
         #(#attrs)*
         #fn_vis #fn_async #fn_unsafe fn #fn_name #fn_generics (#fn_args) #fn_output #fn_where_clause {
 
-            static mut HISTOGRAM: core::cell::LazyCell<core::cell::UnsafeCell<metricus::Histogram>> = core::cell::LazyCell::new(|| core::cell::UnsafeCell::new(metricus::Histogram::new(#measurement, &[ #(#tags),* ])));
+            static mut HISTOGRAM: core::cell::LazyCell<metricus::Histogram> = core::cell::LazyCell::new(|| metricus::Histogram::new(#measurement, &[ #(#tags),* ]));
             #[allow(static_mut_refs)]
             let _span = unsafe { metricus::HistogramOps::span(&HISTOGRAM) };
 
