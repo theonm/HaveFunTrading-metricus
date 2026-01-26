@@ -8,6 +8,7 @@ repository = "https://github.com/HaveFunTrading/metricus"
 keywords = ["metrics", "low-latency"]
 categories = ["development-tools::debugging"]
 rust-version = "1.85.1"
+readme = "README.md"
 
 [workspace]
 members = [
