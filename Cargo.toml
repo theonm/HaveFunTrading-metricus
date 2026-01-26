@@ -19,9 +19,6 @@ members = [
 ]
 resolver = "3"
 
-[workspace.metadata.release]
-workspace = true
-
 [workspace.dependencies]
 anyhow = "1.0.95"
 criterion = "0.5.1"
