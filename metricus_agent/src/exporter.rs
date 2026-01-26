@@ -1,4 +1,4 @@
-use crate::aggregator::{Counter, Counters, Encoder, Histogram, Histograms};
+use crate::aggregator::{Counters, Encoder, Histograms};
 use crate::config::{ExporterSource, FileConfig, UdpConfig, UnixSocketConfig};
 use log::warn;
 use metricus::Id;
@@ -35,7 +35,7 @@ impl TryFrom<ExporterSource> for Exporter {
 }
 
 impl Exporter {
-    pub fn publish_counters(&mut self, counters: &HashMap<Id, Counter>, timestamp: u64) -> std::io::Result<()> {
+    pub fn publish_counters(&mut self, counters: &Counters, timestamp: u64) -> std::io::Result<()> {
         match self {
             Exporter::NoOp => Ok(()),
             Exporter::Udp(exporter) => exporter.publish_counters(counters, timestamp),
@@ -45,7 +45,7 @@ impl Exporter {
         }
     }
 
-    pub fn publish_histograms(&mut self, histograms: &HashMap<Id, Histogram>, timestamp: u64) -> std::io::Result<()> {
+    pub fn publish_histograms(&mut self, histograms: &Histograms, timestamp: u64) -> std::io::Result<()> {
         match self {
             Exporter::NoOp => Ok(()),
             Exporter::Udp(exporter) => exporter.publish_histograms(histograms, timestamp),
@@ -100,13 +100,13 @@ impl UdpExporter {
         self.buffer.clear();
         Ok(())
     }
-    fn publish_counters(&mut self, counters: &HashMap<Id, Counter>, timestamp: u64) -> std::io::Result<()> {
+    fn publish_counters(&mut self, counters: &Counters, timestamp: u64) -> std::io::Result<()> {
         self.publish_metrics(counters, timestamp, |encoder, item, timestamp, buffer| {
             encoder.encode_counter(item, timestamp, buffer)
         })
     }
 
-    fn publish_histograms(&mut self, histograms: &HashMap<Id, Histogram>, timestamp: u64) -> std::io::Result<()> {
+    fn publish_histograms(&mut self, histograms: &Histograms, timestamp: u64) -> std::io::Result<()> {
         self.publish_metrics(histograms, timestamp, |encoder, item, timestamp, buffer| {
             encoder.encode_histogram(item, timestamp, buffer)
         })

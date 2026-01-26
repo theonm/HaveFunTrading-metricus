@@ -2,10 +2,12 @@
 
 use crate::access::get_metrics;
 use crate::{Id, MetricsHandle, Tags};
-#[cfg(feature = "rdtsc")]
+#[cfg(all(feature = "span", feature = "rdtsc"))]
 use quanta::Clock;
 use std::cell::LazyCell;
-#[cfg(not(feature = "rdtsc"))]
+#[cfg(not(feature = "span"))]
+use std::marker::PhantomData;
+#[cfg(all(feature = "span", not(feature = "rdtsc")))]
 use std::time::Instant;
 
 /// Facilitates the creation of a new histogram, recording of values, and
@@ -43,7 +45,7 @@ use std::time::Instant;
 pub struct Histogram {
     id: Id,
     handle: &'static MetricsHandle,
-    #[cfg(feature = "rdtsc")]
+    #[cfg(all(feature = "span", feature = "rdtsc"))]
     clock: Clock,
 }
 
@@ -51,7 +53,7 @@ impl std::fmt::Debug for Histogram {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut debug = f.debug_struct("Histogram");
         debug.field("id", &self.id);
-        #[cfg(feature = "rdtsc")]
+        #[cfg(all(feature = "span", feature = "rdtsc"))]
         {
             debug.field("clock", &self.clock);
         }
@@ -86,7 +88,7 @@ impl Histogram {
         Self {
             id: histogram_id,
             handle: metrics,
-            #[cfg(feature = "rdtsc")]
+            #[cfg(all(feature = "span", feature = "rdtsc"))]
             clock: Clock::new(),
         }
     }
@@ -143,6 +145,7 @@ impl HistogramOps for Histogram {
     }
 
     #[inline]
+    #[cfg(feature = "span")]
     fn span(&self) -> Span<'_> {
         if std::ptr::eq(self.handle, &crate::NO_OP_METRICS_HANDLE) {
             return Span { state: SpanState::NoOp };
@@ -156,6 +159,12 @@ impl HistogramOps for Histogram {
                 start_instant: Instant::now(),
             },
         }
+    }
+
+    #[inline]
+    #[cfg(not(feature = "span"))]
+    fn span(&self) -> Span<'_> {
+        Span { _marker: PhantomData }
     }
 
     #[inline]
@@ -189,10 +198,18 @@ impl Drop for Histogram {
 }
 
 /// Used for measuring how long given operation takes. The duration is recorded in nanoseconds.
+#[cfg(feature = "span")]
 pub struct Span<'a> {
     state: SpanState<'a>,
 }
 
+/// No-op span used when the `span` feature is disabled.
+#[cfg(not(feature = "span"))]
+pub struct Span<'a> {
+    _marker: PhantomData<&'a ()>,
+}
+
+#[cfg(feature = "span")]
 enum SpanState<'a> {
     Active {
         histogram: &'a Histogram,
@@ -204,6 +221,7 @@ enum SpanState<'a> {
     NoOp,
 }
 
+#[cfg(feature = "span")]
 impl Drop for Span<'_> {
     fn drop(&mut self) {
         #[cfg(feature = "rdtsc")]

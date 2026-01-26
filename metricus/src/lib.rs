@@ -215,7 +215,9 @@ static METRICS: MetricsHolder = MetricsHolder {
 /// It should also be called before any worker threads start so hot-path loads can use
 /// relaxed ordering. Otherwise, all metrics calls will delegate to the `NoOpMetrics`.
 pub fn set_metrics(metrics: impl Metrics) {
-    METRICS.handle.set(Box::leak(Box::new(metrics.into_handle())));
+    METRICS
+        .handle
+        .set(Box::leak(Box::new(metrics.into_handle())), Ordering::SeqCst);
 }
 
 /// Get name of the active metrics backend.
@@ -294,21 +296,22 @@ impl<T> AtomicRef<T> {
     }
 
     #[inline]
-    pub fn get(&self) -> &T {
-        unsafe { &*self.ptr.load(Ordering::Relaxed) }
+    pub fn get(&self, ordering: Ordering) -> &T {
+        unsafe { &*self.ptr.load(ordering) }
     }
 
     #[inline]
-    pub fn set(&self, new_ref: &T) {
-        self.ptr.store(new_ref as *const T as *mut T, Ordering::Release);
+    pub fn set(&self, new_ref: &T, ordering: Ordering) {
+        self.ptr.store(new_ref as *const T as *mut T, ordering);
     }
 }
 
 mod access {
     use crate::{METRICS, MetricsHandle};
+    use std::sync::atomic::Ordering;
 
     #[inline(always)]
     pub fn get_metrics() -> &'static MetricsHandle {
-        METRICS.handle.get()
+        METRICS.handle.get(Ordering::Relaxed)
     }
 }

@@ -12,7 +12,8 @@ categories.workspace = true
 rust-version.workspace = true
 
 [features]
-default = []
+default = ["span"]
+span = []
 rdtsc = ["dep:quanta"]
 
 [dependencies]
@@ -33,4 +34,3 @@ harness = false
 name = "dispatch"
 path = "benches/dispatch.rs"
 harness = false
-
