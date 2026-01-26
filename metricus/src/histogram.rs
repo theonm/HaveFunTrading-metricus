@@ -157,7 +157,9 @@ impl HistogramOps for Histogram {
     #[inline]
     #[cfg(not(feature = "span"))]
     fn span(&self) -> Span<'_> {
-        Span { _marker: std::marker::PhantomData }
+        Span {
+            _marker: std::marker::PhantomData,
+        }
     }
 
     #[inline]
