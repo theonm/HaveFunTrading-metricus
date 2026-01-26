@@ -25,7 +25,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_with = { workspace = true }
 
 [dev-dependencies]
-metricus_macros = { path = "../metricus_macros", version = "0.0.15" }
+metricus_macros = { path = "../metricus_macros", version = "0.0.16" }
 criterion = { workspace = true }
 
 [[bench]]
