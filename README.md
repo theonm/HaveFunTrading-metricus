@@ -1,3 +1,8 @@
+[![Build Status](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2FHaveFunTrading%2Fmetricus%2Fbadge%3Fref%3Dmain&style=flat&label=build&logo=none)](https://actions-badge.atrox.dev/HaveFunTrading/metricus/goto?ref=main)
+[![Crates.io](https://img.shields.io/crates/v/metricus.svg)](https://crates.io/crates/metricus)
+[![Documentation](https://docs.rs/metricus/badge.svg)](https://docs.rs/metricus/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 # metric&#181;s
 
 Low-latency metrics framework.
